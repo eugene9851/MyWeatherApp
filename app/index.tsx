@@ -1,15 +1,28 @@
+import { Fontisto } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useEffect, useState } from "react";
-import { Dimensions, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Dimensions, ScrollView, StyleSheet, Text, View } from "react-native";
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
+const API_KEY = process.env.EXPO_PUBLIC_API_KEY;
+
+const icons = {
+  "Clouds": "cloudy",
+  "Clear": "day-sunny",
+  "Rain": "rains",
+  "Snow": "snow",
+  "Drizzle": "rain",
+  "Thunderstorm": "lightning",
+  "Mist": "cloudy",
+}
+
 export default function Index() {
   const [city, setCity] = useState("Loading...");
-  const [location, setLocation] = useState<Location.LocationObject | null>(null);
+  const [days, setDays] = useState([]);
   const [ok, setOk] = useState(true);
 
-  const ask = async() => {
+  const getWheather = async() => {
     await Location.requestForegroundPermissionsAsync();
     const {granted} = await Location.requestForegroundPermissionsAsync();
     if(!granted) setOk(false);
@@ -17,11 +30,15 @@ export default function Index() {
     const {coords: {latitude, longitude}} = await Location.getCurrentPositionAsync({ accuracy: 5 });
     const location = await Location.reverseGeocodeAsync({latitude, longitude});
     setCity(location[0].city || "Loading...");
+
+    const response = await fetch(`https://api.openweathermap.org/data/2.5/forecast?lat=${latitude}&lon=${longitude}&appid=${API_KEY}&units=metric`);
+    const json = await response.json();
+    setDays(json.list.filter((weather: any) => weather.dt_txt.includes("00:00:00")));
   }
 
   useEffect(() => {
-    ask();
-  })
+    getWheather();
+  }, [])
 
   return (
     <View style={styles.container}>
@@ -29,18 +46,22 @@ export default function Index() {
         <Text style={styles.cityName}>{city}</Text>
       </View>
       <ScrollView horizontal pagingEnabled indicatorStyle="black" contentContainerStyle={styles.weather}>
-        <View style={styles.day}>
-          <Text style={styles.temp}>27</Text>
-          <Text style={styles.description}>Sunny</Text>
-        </View>
-        <View style={styles.day}>
-          <Text style={styles.temp}>27</Text>
-          <Text style={styles.description}>Sunny</Text>
-        </View>
-        <View style={styles.day}>
-          <Text style={styles.temp}>27</Text>
-          <Text style={styles.description}>Sunny</Text>
-        </View>
+        {days.length === 0 ? (
+          <View style={styles.day}>
+            <ActivityIndicator color="white" size="large" style={{marginTop: 10}} />
+          </View>
+        ) : (
+          days.map((day: any, index: number) => (
+            <View style={styles.day} key={index}>
+              <View style={{flexDirection: "row", alignItems: "center", width: "90%", justifyContent: "space-between"}}>
+                <Text style={styles.temp}>{parseFloat(day.main.temp).toFixed(1)}</Text>
+                <Fontisto name={icons[day.weather[0].main as keyof typeof icons]} size={68} color="white" />
+              </View>
+              <Text style={styles.main}>{day.weather[0].main}</Text>
+              <Text style={styles.description}>{day.weather[0].description}</Text>
+            </View>
+          ))
+        )}
       </ScrollView>
     </View>
   );
@@ -49,7 +70,7 @@ export default function Index() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "tomato",
+    backgroundColor: "skyblue",
   },
   city: {
     flex: 1,
@@ -67,11 +88,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   temp: {
-    fontSize: 178,
+    fontSize: 130,
     marginTop: 50,
   },
-  description: {
+  main: {
     fontSize: 60,
-    marginTop: -30,
+  },
+  description: {
+    fontSize: 20,
   },
 })
